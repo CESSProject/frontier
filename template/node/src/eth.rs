@@ -8,7 +8,7 @@ use std::{
 use futures::{future, prelude::*};
 // Substrate
 use sc_client_api::BlockchainEvents;
-use sc_executor::HostFunctions;
+use sc_executor::NativeExecutionDispatch;
 use sc_network_sync::SyncingService;
 use sc_service::{error::Error as ServiceError, Configuration, TaskManager};
 use sp_api::ConstructRuntimeApi;
@@ -145,7 +145,7 @@ pub async fn spawn_frontier_tasks<B, RA, HF>(
 	RA: ConstructRuntimeApi<B, FullClient<B, RA, HF>>,
 	RA: Send + Sync + 'static,
 	RA::RuntimeApi: EthCompatRuntimeApiCollection<B>,
-	HF: HostFunctions + 'static,
+	HF: NativeExecutionDispatch + 'static,
 {
 	// Spawn main mapping sync worker background task.
 	match &*frontier_backend {

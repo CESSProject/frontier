@@ -8,7 +8,6 @@ use prometheus_endpoint::Registry;
 use sc_client_api::{Backend as BackendT, BlockBackend};
 use sc_consensus::{BasicQueue, BoxBlockImport};
 use sc_consensus_grandpa::BlockNumberOps;
-use sc_executor::HostFunctions as HostFunctionsT;
 use sc_network_sync::strategy::warp::{WarpSyncConfig, WarpSyncProvider};
 use sc_service::{error::Error as ServiceError, Configuration, PartialComponents, TaskManager};
 use sc_telemetry::{Telemetry, TelemetryHandle, TelemetryWorker};
@@ -42,10 +41,24 @@ pub type HostFunctions = (
 );
 /// Otherwise we use empty host functions for ext host functions.
 #[cfg(not(feature = "runtime-benchmarks"))]
-pub type HostFunctions = sp_io::SubstrateHostFunctions;
+pub type HostFunctions = ();
+
+use sc_executor::{NativeExecutionDispatch, NativeVersion};
+pub struct MyNativeDispatcher;
+impl NativeExecutionDispatch for MyNativeDispatcher {
+	type ExtendHostFunctions = HostFunctions;
+
+	fn dispatch(method: &str, data: &[u8]) -> Option<Vec<u8>> {
+		frontier_template_runtime::api::dispatch(method, data)
+	}
+
+	fn native_version() -> NativeVersion {
+		frontier_template_runtime::native_version()
+	}
+}
 
 pub type Backend = FullBackend<Block>;
-pub type Client = FullClient<Block, RuntimeApi, HostFunctions>;
+pub type Client = FullClient<Block, RuntimeApi, MyNativeDispatcher>;
 
 type FullSelectChain<B> = sc_consensus::LongestChain<FullBackend<B>, B>;
 type GrandpaBlockImport<B, C> =
@@ -82,7 +95,7 @@ where
 	RA: ConstructRuntimeApi<B, FullClient<B, RA, HF>>,
 	RA: Send + Sync + 'static,
 	RA::RuntimeApi: BaseRuntimeApiCollection<B> + EthCompatRuntimeApiCollection<B>,
-	HF: HostFunctionsT + 'static,
+	HF: NativeExecutionDispatch + 'static,
 	BIQ: FnOnce(
 		Arc<FullClient<B, RA, HF>>,
 		&Configuration,
@@ -103,7 +116,7 @@ where
 		})
 		.transpose()?;
 
-	let executor = sc_service::new_wasm_executor(&config.executor);
+	let executor = sc_service::new_native_or_wasm_executor(&config);
 
 	let (client, backend, keystore_container, task_manager) = sc_service::new_full_parts::<B, RA, _>(
 		config,
@@ -208,7 +221,7 @@ where
 	RA: ConstructRuntimeApi<B, FullClient<B, RA, HF>>,
 	RA: Send + Sync + 'static,
 	RA::RuntimeApi: RuntimeApiCollection<B, AuraId, AccountId, Nonce, Balance>,
-	HF: HostFunctionsT + 'static,
+	HF: NativeExecutionDispatch + 'static,
 {
 	let frontier_block_import =
 		FrontierBlockImport::new(grandpa_block_import.clone(), client.clone());
@@ -258,7 +271,7 @@ where
 	RA: ConstructRuntimeApi<B, FullClient<B, RA, HF>>,
 	RA: Send + Sync + 'static,
 	RA::RuntimeApi: RuntimeApiCollection<B, AuraId, AccountId, Nonce, Balance>,
-	HF: HostFunctionsT + 'static,
+	HF: NativeExecutionDispatch + 'static,
 {
 	let frontier_block_import = FrontierBlockImport::new(client.clone(), client);
 	Ok((
@@ -284,7 +297,7 @@ where
 	RA: ConstructRuntimeApi<B, FullClient<B, RA, HF>>,
 	RA: Send + Sync + 'static,
 	RA::RuntimeApi: RuntimeApiCollection<B, AuraId, AccountId, Nonce, Balance>,
-	HF: HostFunctionsT + 'static,
+	HF: NativeExecutionDispatch + 'static,
 	NB: sc_network::NetworkBackend<B, <B as BlockT>::Hash>,
 {
 	let build_import_queue = if sealing.is_some() {
@@ -649,7 +662,7 @@ where
 	RA: ConstructRuntimeApi<B, FullClient<B, RA, HF>>,
 	RA: Send + Sync + 'static,
 	RA::RuntimeApi: RuntimeApiCollection<B, AuraId, AccountId, Nonce, Balance>,
-	HF: HostFunctionsT + 'static,
+	HF: NativeExecutionDispatch + 'static,
 {
 	let proposer_factory = sc_basic_authorship::ProposerFactory::new(
 		task_manager.spawn_handle(),
@@ -732,7 +745,7 @@ pub async fn build_full(
 	eth_config: EthConfiguration,
 	sealing: Option<Sealing>,
 ) -> Result<TaskManager, ServiceError> {
-	new_full::<Block, RuntimeApi, HostFunctions, sc_network::NetworkWorker<_, _>>(
+	new_full::<Block, RuntimeApi, MyNativeDispatcher, sc_network::NetworkWorker<_, _>>(
 		config, eth_config, sealing,
 	)
 	.await
@@ -759,7 +772,7 @@ pub fn new_chain_ops(
 		task_manager,
 		other,
 		..
-	} = new_partial::<Block, RuntimeApi, HostFunctions, _>(
+	} = new_partial::<Block, RuntimeApi, MyNativeDispatcher, _>(
 		config,
 		eth_config,
 		build_aura_grandpa_import_queue,

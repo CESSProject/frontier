@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use std::{marker::PhantomData, sync::Arc};
+use std::{marker::PhantomData, ops::Deref, sync::Arc};
 
 // Substrate
 use sc_client_api::{
@@ -131,7 +131,7 @@ where
 			.graph
 			.validated_pool()
 			.ready()
-			.map(|in_pool_tx| in_pool_tx.data().clone())
+			.map(|in_pool_tx| in_pool_tx.data().deref().clone())
 			.collect::<Vec<<B as BlockT>::Extrinsic>>();
 		log::debug!(target: LOG_TARGET, "Pending runtime API: extrinsic len = {}", extrinsics.len());
 		// Apply the extrinsics from the ready queue to the pending block's state.

@@ -74,7 +74,8 @@ impl frame_system::Config for Runtime {
 	type PreInherents = ();
 	type PostInherents = ();
 	type PostTransactions = ();
-	type SingleBlockMigrations = ();
+	type SingleBlockMigrations = ();	
+	type ExtensionsWeightInfo = ();
 }
 
 parameter_types! {
@@ -95,6 +96,7 @@ impl pallet_balances::Config for Runtime {
 	type MaxReserves = ();
 	type MaxFreezes = ();
 	type RuntimeFreezeReason = ();
+	type DoneSlashHandler = ();
 }
 
 parameter_types! {
